@@ -6,52 +6,47 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct AddView: View {
+    @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
-    @State private var name = ""
-    @State private var type = "Personal"
-    @State private var amount = 0.0
-    
-    var expenses:Expenses
+    @Bindable var expense:ExpenseItem
     
     let types = ["Business", "Personal"]
     
     var body: some View {
-        NavigationStack {
-            Form {
-                TextField("Name", text: $name)
-                
-                Picker("Type", selection: $type) {
-                    ForEach(types, id: \.self) {
-                        Text($0).tag($0)
-                    }
-                }
-                
-                TextField("Amount", value: $amount, format: .currency(code: Locale.current.currency?.identifier ?? "USD"))
-                    .keyboardType(.decimalPad)
-            }
-            .navigationTitle("Add New Expense")
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Button("Save") {
-                        let expense = ExpenseItem(name: name, type: type, amount: amount)
-                        expenses.items.append(expense)
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .destructiveAction){
-                    Button("Dismiss", role: .destructive) {
-                        dismiss()
-                    }
-                    .foregroundStyle(.red)
+        Form {
+            TextField("Name", text: $expense.name)
+            
+            Picker("Type", selection: $expense.type) {
+                ForEach(types, id: \.self) {
+                    Text($0).tag($0)
                 }
             }
+            
+            TextField("Amount", value: $expense.amount, format: .currency(code: Locale.current.currency?.identifier ?? "USD"))
+                .keyboardType(.decimalPad)
+                .navigationTitle("Add New Expense")
+                        .toolbar {
+                            ToolbarItem(placement: .automatic) {
+                                Button("Save") {
+                                    dismiss()
+                                }
+                            }
+                            ToolbarItem(placement: .destructiveAction){
+                                Button("Dismiss", role: .destructive) {
+                                    dismiss()
+                                    modelContext.delete(expense)
+                                }
+                                .foregroundStyle(.red)
+                            }
+                        }
         }
         .navigationBarBackButtonHidden()
     }
 }
 
 #Preview {
-    AddView(expenses: Expenses())
+    AddView(expense: ExpenseItem(name: "Book", type: "Personal", amount: 30))
 }

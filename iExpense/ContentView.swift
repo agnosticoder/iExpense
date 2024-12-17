@@ -6,123 +6,84 @@
 //
 
 import SwiftUI
+import SwiftData
 
-struct ExpenseItem: Identifiable, Codable {
-    var id = UUID()
-    let name:String
-    let type:String
-    let amount:Double
-}
-
-@Observable
-class Expenses {
-    var items = [ExpenseItem]() {
-        didSet {
-            if let ecoded = try? JSONEncoder().encode(items) {
-                UserDefaults.standard.set(ecoded, forKey: "items")
-            }
-        }
-    }
-    
-    init() {
-        if let savedItems = UserDefaults.standard.data(forKey: "items") {
-            if let decodedItems = try? JSONDecoder().decode([ExpenseItem].self, from: savedItems) {
-                items = decodedItems
-                return
-            }
-        }
-        
-        items = []
-    }
-}
 
 struct ContentView: View {
-    @State private var expenses = Expenses()
+    @Environment(\.modelContext) var modelContext
+    @Query var expenses: [ExpenseItem]
+    @State private var sortBy = [SortDescriptor(\ExpenseItem.name)]
+    @State private var filterBy = "All"
+    @State private var path = [ExpenseItem]()
     
-    var personalExpenses: [ExpenseItem] {
-        expenses.items.filter{ $0.type == "Personal"}
-    }
-    
-    var businessExpenses: [ExpenseItem] {
-        expenses.items.filter{ $0.type == "Business"}
-    }
+    let filters: Set<String> = ["All", "Personal", "Business"]
     
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
-                Section("Personal") {
-                    ForEach(personalExpenses) { item in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(item.name)
-                                    .font(.headline)
-                                
-                                Text(item.type)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            Text(item.amount, format: .currency(code: Locale.current.currency?.identifier ?? "USD"))
-                                .foregroundColor(item.amount <= 10 ? .green : item.amount <= 100 ? .yellow : .red)
-                                .font(.body)
-                        }
-                    }
-                    .onDelete(perform: onDeletePersonalExpense)
-                }
-                
-                Section("Business") {
-                    ForEach(businessExpenses) { item in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(item.name)
-                                    .font(.headline)
-                                
-                                Text(item.type)
-                            }
-                            
-                            Spacer()
-                            
-                            Text(item.amount, format: .currency(code: Locale.current.currency?.identifier ?? "USD"))
-                                .foregroundColor(item.amount <= 10 ? .green : item.amount <= 100 ? .yellow : .red)
-                        }
-                    }
-                    .onDelete(perform: onDeleteBusinessExpense)
-                }
+                ExpensesView(sortBy: sortBy, filter: filterBy)
             }
             .navigationTitle("iExpense")
+            .navigationDestination(for: ExpenseItem.self) { expense in
+                AddView(expense: expense)
+            }
             .toolbar {
                 ToolbarItemGroup {
-                    NavigationLink {
-                        AddView(expenses: expenses)
-                    } label: {
-                        Image(systemName: "plus")
+                    Button("Add Expense", systemImage: "plus") {
+                        let expense = ExpenseItem(name: "", type: "Personal", amount: 0)
+                        
+                        modelContext.insert(expense)
+                        
+                        path = [expense]
                     }
                     
+                    Menu("Sort by", systemImage: "arrow.up.arrow.down") {
+                        Picker("Sort by", selection: $sortBy) {
+                            Text("Name").tag([SortDescriptor(\ExpenseItem.name)])
+                            Text("Amount").tag([SortDescriptor(\ExpenseItem.amount)])
+                        }
+                    }
+                    
+                    Menu("Filter by", systemImage: "line.3.horizontal.decrease.circle") {
+                        Picker("Filter", selection: $filterBy) {
+                            ForEach(Array(filters), id: \.self) { filter in
+                                Text(filter)
+                            }
+                        }
+                    }
+
                     EditButton()
                 }
-            }
-        }
-    }
-    
-    func onDeletePersonalExpense(at offsets: IndexSet) {
-        for offset in offsets {
-            if let index = expenses.items.firstIndex(where: {$0.id == personalExpenses[offset].id}) {
-                expenses.items.remove(at: index)
-            }
-        }
-    }
-    
-    func onDeleteBusinessExpense(at offsets: IndexSet) {
-        for offset in offsets {
-            if let index = expenses.items.firstIndex(where: {$0.id == businessExpenses[offset].id}) {
-                expenses.items.remove(at: index)
+                
+                
             }
         }
     }
 }
 
 #Preview {
-    ContentView()
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: ExpenseItem.self, configurations: config)
+    
+    let expenses = [
+        ExpenseItem(name: "Expense 1", type: "Personal", amount: 714.94),
+        ExpenseItem(name: "Expense 2", type: "Business", amount: 429.09),
+        ExpenseItem(name: "Expense 3", type: "Personal", amount: 459.40),
+        ExpenseItem(name: "Expense 4", type: "Business", amount: 900.78),
+        ExpenseItem(name: "Expense 5", type: "Personal", amount: 732.06),
+        ExpenseItem(name: "Expense 6", type: "Business", amount: 382.48),
+        ExpenseItem(name: "Expense 7", type: "Personal", amount: 126.82),
+        ExpenseItem(name: "Expense 8", type: "Business", amount: 825.44),
+        ExpenseItem(name: "Expense 9", type: "Personal", amount: 351.16),
+        ExpenseItem(name: "Expense 10", type: "Business", amount: 403.62),
+        ExpenseItem(name: "Expense 49", type: "Personal", amount: 265.46),
+        ExpenseItem(name: "Expense 50", type: "Business", amount: 228.60)
+    ]
+    
+    for expense in expenses {
+        container.mainContext.insert(expense)
+    }
+    
+    return ContentView()
+        .modelContainer(container)
 }
